@@ -1,24 +1,33 @@
 # Spendsnap
 
-> Employees snap receipts; Spendsnap converts them into reviewable, auditable expense data without requiring a corporate card.
+> Employees snap receipts; Spendsnap converts them into reviewable, auditable expense reports without requiring a corporate card.
 
-Spendsnap is an AI-assisted expense-report product seed inspired by the workflow category pioneered by products such as Emburse. Its initial India-specific hypothesis is GST-aware receipt processing, but Phase 0 treats the customer segment, accounting destination, pricing, and GST value as evidence-driven decisions rather than assumptions.
+Spendsnap is an AI-assisted expense-report product seed. Its initial India-specific hypothesis is GST-aware receipt processing, while customer segment, accounting destination, pricing, and GST value remain evidence-driven decisions.
 
 ## Current implementation
 
-The repository now contains **Phase 1: Receipt Truth Engine**:
+The repository contains two implemented backend phases:
 
 ```text
+Phase 1 — Receipt Truth Engine
 signed receipt upload
   → private company-scoped storage
   → extraction queue
-  → server file/hash verification
+  → file/hash verification
   → structured vision extraction
-  → deterministic arithmetic and duplicate checks
-  → field-level review queue
-  → employee correction proposals
-  → finance/admin resolution
+  → deterministic validation and duplicate checks
+  → human field resolution
   → verified receipt evidence
+
+Phase 2 — Employee Submission and Report Assembly
+verified receipt evidence
+  → employee-confirmed expense claim
+  → category/project/cost-centre context
+  → draft report assembly
+  → database readiness validation
+  → exact totals grouped by currency
+  → immutable submitted report snapshot
+  → finance-visible evidence
 ```
 
 The architecture uses:
@@ -26,16 +35,18 @@ The architecture uses:
 - Cloudflare Workers, Hono, and Cloudflare Queues;
 - Supabase Auth, Postgres, Row Level Security, and private Storage;
 - Anthropic vision through a forced structured extraction tool;
-- immutable extraction, correction, resolution, duplicate, and audit records.
+- immutable extraction, correction, resolution, submission, and audit records;
+- optimistic versions and database row locks for concurrent report edits.
 
-The AI cannot approve expenses, determine tax-credit eligibility, pay reimbursements, or overwrite accepted values.
+The AI cannot approve expenses, determine tax-credit eligibility, pay reimbursements, invent exchange rates, or overwrite accepted values.
 
 ## Documentation
 
 - [Phase 0 — discovery and validation](docs/phase-0/README.md)
 - [Phase 1 — receipt truth engine](docs/phase-1/README.md)
 - [Phase 1 threat model](docs/phase-1/threat-model.md)
-- [Provisioning and operator runbook](docs/phase-1/runbook.md)
+- [Phase 1 provisioning runbook](docs/phase-1/runbook.md)
+- [Phase 2 — employee submission and report assembly](docs/phase-2/README.md)
 - [Supabase setup and isolation checks](supabase/README.md)
 - [Receipt evaluation data contract](research/README.md)
 - [Architecture decisions](decisions/)
@@ -57,6 +68,8 @@ npm run evaluate -- research/gold.jsonl research/actual.jsonl research/report.js
 
 ## API surface
 
+### Receipt evidence
+
 - `GET /health`
 - `POST /v1/receipts/upload-intents`
 - `POST /v1/receipts/:receiptId/complete`
@@ -66,9 +79,24 @@ npm run evaluate -- research/gold.jsonl research/actual.jsonl research/report.js
 - `POST /v1/receipts/:receiptId/resolutions`
 - `POST /v1/duplicate-candidates/:candidateId/resolve`
 
-All `/v1` routes require a valid Supabase Bearer token. Final field resolution and duplicate decisions require the finance or admin role.
+### Employee expenses
 
-## Original business hypothesis
+- `GET /v1/expenses/dimensions?companyId=...`
+- `POST /v1/expenses/claims/from-receipt`
+- `GET /v1/expenses/claims?companyId=...&status=draft`
+- `GET /v1/expenses/claims/:claimId`
+- `PATCH /v1/expenses/claims/:claimId`
+- `POST /v1/expenses/reports`
+- `GET /v1/expenses/reports?companyId=...&status=draft`
+- `GET /v1/expenses/reports/:reportId`
+- `POST /v1/expenses/reports/:reportId/items`
+- `DELETE /v1/expenses/reports/:reportId/items/:claimId?expectedVersion=...`
+- `POST /v1/expenses/reports/:reportId/submit`
+- `POST /v1/expenses/reports/:reportId/withdraw`
+
+All `/v1` routes require a valid Supabase Bearer token. Receipt field resolution and duplicate decisions require finance or admin. Employees control their own claims and reports; manager, finance, admin, and auditor roles may read company report evidence.
+
+## Business hypothesis
 
 | Area | Hypothesis |
 |---|---|
@@ -80,4 +108,4 @@ All `/v1` routes require a valid Supabase Bearer token. Final field resolution a
 
 ## Status
 
-The code, migrations, tests, and runbook are committed. Infrastructure has **not** been provisioned or deployed by these commits. Before real customer data, apply migrations in a non-production Supabase project, create the queues, configure secrets, run tenant-isolation tests, and evaluate a representative consented receipt corpus.
+The Phase 1 and Phase 2 code, migrations, tests, and documentation are committed to `main`. Infrastructure has **not** been provisioned or deployed by these commits. Before real customer data, apply all migrations in a non-production Supabase project, create Cloudflare queues, configure secrets, run tenant-isolation and concurrency tests, execute the full repository check, and validate a representative consented receipt/report corpus.
