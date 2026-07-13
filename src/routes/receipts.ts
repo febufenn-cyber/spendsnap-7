@@ -6,6 +6,7 @@ import { positiveInteger } from '../env';
 import { AppError } from '../errors';
 import { CloudflareExtractionQueuePublisher } from '../queue/publisher';
 import { SupabaseReceiptRepository, SupabaseServiceReceiptRepository } from '../repositories/supabase-receipt-repository';
+import { SupabaseReviewRepository } from '../repositories/supabase-review-repository';
 import { SupabaseStorageGateway } from '../storage/supabase-storage';
 
 const uploadIntentSchema = z.object({
@@ -19,6 +20,24 @@ const uploadIntentSchema = z.object({
 
 const completionSchema = z.object({
   clientSha256: z.string().regex(/^[a-fA-F0-9]{64}$/),
+});
+
+const correctionRequestSchema = z.object({
+  corrections: z.array(z.object({
+    fieldName: z.string().regex(/^[a-z][a-z0-9_]{1,79}$/),
+    previousFieldId: z.string().uuid(),
+    correctedValue: z.unknown(),
+    reason: z.string().trim().max(1000).nullable().optional(),
+  })).min(1).max(25),
+});
+
+const resolutionRequestSchema = z.object({
+  decisions: z.array(z.object({
+    fieldName: z.string().regex(/^[a-z][a-z0-9_]{1,79}$/),
+    source: z.enum(['prediction', 'correction']),
+    sourceId: z.string().uuid(),
+  })).max(50),
+  finalize: z.boolean().default(false),
 });
 
 function safeFilename(filename: string): string {
@@ -132,6 +151,74 @@ receiptRoutes.post('/:receiptId/complete', async (context) => {
 
   const queued = await serviceRepository.markQueued(received.id);
   return context.json({ receipt: queued }, 202);
+});
+
+receiptRoutes.get('/:receiptId/review', async (context) => {
+  const receiptId = context.req.param('receiptId');
+  if (!z.string().uuid().safeParse(receiptId).success) {
+    throw new AppError('bad_request', 400, 'The receipt ID is invalid.');
+  }
+
+  const repository = new SupabaseReviewRepository(context.env, context.get('accessToken'));
+  const review = await repository.getReceiptReview(receiptId);
+  if (!review) throw new AppError('not_found', 404, 'Receipt not found.');
+
+  return context.json({ review });
+});
+
+receiptRoutes.post('/:receiptId/corrections', async (context) => {
+  const receiptId = context.req.param('receiptId');
+  if (!z.string().uuid().safeParse(receiptId).success) {
+    throw new AppError('bad_request', 400, 'The receipt ID is invalid.');
+  }
+
+  const parsed = correctionRequestSchema.safeParse(await jsonBody(context.req.raw));
+  if (!parsed.success) {
+    throw new AppError('bad_request', 400, 'The correction request is invalid.', {
+      issues: parsed.error.issues,
+    });
+  }
+
+  const repository = new SupabaseReviewRepository(context.env, context.get('accessToken'));
+  const corrections = await repository.submitCorrections(
+    receiptId,
+    context.get('user').id,
+    parsed.data.corrections.map((correction) => ({
+      fieldName: correction.fieldName,
+      previousFieldId: correction.previousFieldId,
+      correctedValue: correction.correctedValue,
+      reason: correction.reason ?? null,
+    })),
+  );
+
+  return context.json({ corrections }, 201);
+});
+
+receiptRoutes.post('/:receiptId/resolutions', async (context) => {
+  const receiptId = context.req.param('receiptId');
+  if (!z.string().uuid().safeParse(receiptId).success) {
+    throw new AppError('bad_request', 400, 'The receipt ID is invalid.');
+  }
+
+  const parsed = resolutionRequestSchema.safeParse(await jsonBody(context.req.raw));
+  if (!parsed.success) {
+    throw new AppError('bad_request', 400, 'The field-resolution request is invalid.', {
+      issues: parsed.error.issues,
+    });
+  }
+  if (!parsed.data.finalize && parsed.data.decisions.length === 0) {
+    throw new AppError('bad_request', 400, 'At least one resolution decision is required.');
+  }
+
+  const repository = new SupabaseReviewRepository(context.env, context.get('accessToken'));
+  const result = await repository.resolveFields(
+    receiptId,
+    parsed.data.decisions,
+    parsed.data.finalize,
+    context.get('requestId'),
+  );
+
+  return context.json({ result });
 });
 
 receiptRoutes.get('/:receiptId', async (context) => {
