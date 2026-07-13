@@ -4,6 +4,7 @@ import { AppError, errorMessage, isAppError } from './errors';
 import { authMiddleware } from './middleware/auth';
 import { requestIdMiddleware } from './middleware/request-id';
 import { duplicateRoutes } from './routes/duplicates';
+import { expenseRoutes } from './routes/expenses';
 import { receiptRoutes } from './routes/receipts';
 
 export function createApp(): Hono<AppBindings> {
@@ -22,6 +23,7 @@ export function createApp(): Hono<AppBindings> {
   app.use('/v1/*', authMiddleware());
   app.route('/v1/receipts', receiptRoutes);
   app.route('/v1/duplicate-candidates', duplicateRoutes);
+  app.route('/v1/expenses', expenseRoutes);
 
   app.notFound((context) => context.json({
     error: {
@@ -38,7 +40,6 @@ export function createApp(): Hono<AppBindings> {
       : new AppError('internal_error', 500, 'An unexpected error occurred.', undefined, {
           cause: error,
         });
-
     console.error(JSON.stringify({
       level: 'error',
       requestId,
