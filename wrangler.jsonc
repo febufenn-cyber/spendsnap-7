@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "spendsnap-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-13",
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "RECEIPT_BUCKET": "receipts",
+    "MAX_RECEIPT_BYTES": "7500000",
+    "UPLOAD_URL_TTL_SECONDS": "900",
+    "EXTRACTION_PROMPT_VERSION": "receipt-v1"
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "EXTRACTION_QUEUE",
+        "queue": "spendsnap-extractions"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "spendsnap-extractions",
+        "max_batch_size": 5,
+        "max_batch_timeout": 10,
+        "max_retries": 3,
+        "dead_letter_queue": "spendsnap-extractions-dlq"
+      }
+    ]
+  }
+}
