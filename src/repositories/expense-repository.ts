@@ -34,8 +34,8 @@ export interface ExpenseRepository {
   createReport(input: CreateExpenseReportInput): Promise<unknown>;
   getReport(reportId: string): Promise<Record<string, unknown> | null>;
   listReports(companyId: string, status?: ExpenseReportStatus): Promise<Record<string, unknown>[]>;
-  addClaim(reportId: string, claimId: string, requestId: string): Promise<unknown>;
-  removeClaim(reportId: string, claimId: string, requestId: string): Promise<unknown>;
+  addClaim(reportId: string, claimId: string, expectedVersion: number, requestId: string): Promise<unknown>;
+  removeClaim(reportId: string, claimId: string, expectedVersion: number, requestId: string): Promise<unknown>;
   submitReport(reportId: string, expectedVersion: number, requestId: string): Promise<unknown>;
   withdrawReport(reportId: string, expectedVersion: number, requestId: string): Promise<unknown>;
 }
