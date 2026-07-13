@@ -149,8 +149,13 @@ receiptRoutes.post('/:receiptId/complete', async (context) => {
     enqueuedAt: new Date().toISOString(),
   });
 
-  const queued = await serviceRepository.markQueued(received.id);
-  return context.json({ receipt: queued }, 202);
+  // The queue consumer owns the received → queued → extracting transition.
+  // Keeping the receipt in `received` here makes a failed publish safely retryable
+  // and avoids racing a fast consumer that has already moved it to `extracting`.
+  return context.json({
+    receipt: received,
+    queue: { status: 'published' },
+  }, 202);
 });
 
 receiptRoutes.get('/:receiptId/review', async (context) => {
