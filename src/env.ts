@@ -8,7 +8,6 @@ export interface Env {
   ANTHROPIC_MODEL: string;
   RECEIPT_BUCKET: string;
   MAX_RECEIPT_BYTES: string;
-  UPLOAD_URL_TTL_SECONDS: string;
   EXTRACTION_PROMPT_VERSION: string;
   BUILD_SHA?: string;
   EXTRACTION_QUEUE: Queue<ExtractionJob>;

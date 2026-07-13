@@ -10,7 +10,6 @@
   "vars": {
     "RECEIPT_BUCKET": "receipts",
     "MAX_RECEIPT_BYTES": "7500000",
-    "UPLOAD_URL_TTL_SECONDS": "900",
     "EXTRACTION_PROMPT_VERSION": "receipt-v1"
   },
   "queues": {

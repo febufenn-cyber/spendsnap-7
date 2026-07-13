@@ -8,9 +8,15 @@ export interface SignedUpload {
   token: string | null;
 }
 
+export interface DownloadedObject {
+  bytes: ArrayBuffer;
+  sizeBytes: number;
+}
+
 export interface StorageGateway {
   createSignedUpload(path: string): Promise<SignedUpload>;
   assertObjectExists(path: string): Promise<void>;
+  download(path: string): Promise<DownloadedObject>;
 }
 
 function splitStoragePath(path: string): { folder: string; filename: string } {
@@ -53,6 +59,21 @@ export class SupabaseStorageGateway implements StorageGateway {
       signedUrl: data.signedUrl,
       token: 'token' in data && typeof data.token === 'string' ? data.token : null,
     };
+  }
+
+  async download(path: string): Promise<DownloadedObject> {
+    const { data, error } = await this.client.storage
+      .from(this.env.RECEIPT_BUCKET)
+      .download(path);
+
+    if (error || !data) {
+      throw new AppError('storage_error', 502, 'Could not download the uploaded receipt.', undefined, {
+        cause: error,
+      });
+    }
+
+    const bytes = await data.arrayBuffer();
+    return { bytes, sizeBytes: bytes.byteLength };
   }
 
   async assertObjectExists(path: string): Promise<void> {

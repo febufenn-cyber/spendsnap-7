@@ -87,7 +87,7 @@ receiptRoutes.post('/upload-intents', async (context) => {
         path: upload.path,
         signedUrl: upload.signedUrl,
         token: upload.token,
-        expiresInSeconds: positiveInteger(context.env.UPLOAD_URL_TTL_SECONDS, 900),
+        expiresInSeconds: 7200,
       },
     },
     201,

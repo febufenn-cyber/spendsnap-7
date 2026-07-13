@@ -9,6 +9,8 @@ export type ErrorCode =
   | 'storage_error'
   | 'database_error'
   | 'queue_error'
+  | 'extraction_error'
+  | 'integrity_error'
   | 'internal_error';
 
 export class AppError extends Error {
