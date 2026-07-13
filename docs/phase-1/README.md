@@ -1,315 +1,167 @@
 # Phase 1 — Receipt Truth Engine
 
-> Build the evidence layer that turns an uploaded receipt into structured, reviewable, auditable financial data.
+> Turn a submitted receipt into structured, reviewable, auditable financial evidence.
 
-Phase 1 is deliberately narrower than the original MVP. It does not build expense reports, approval chains, reimbursements, billing, cards, or autonomous policy decisions. Those layers are only valuable when the receipt data underneath them can be trusted.
+Phase 1 deliberately stops before reports, policy approval, reimbursement, cards, billing, or accounting export. Those workflows should consume verified receipt facts rather than raw AI output.
 
-## Strategic position
+## Core rule
 
-The visible product is an AI expense assistant. The hidden product is a financial evidence system.
+```text
+document evidence
+  → immutable model prediction
+  → deterministic validation
+  → human correction or confirmation
+  → verified fact
+```
 
-A receipt pipeline must answer four questions before downstream automation is allowed:
+AI output never overwrites an accepted value. Every model attempt, correction, resolution, duplicate decision, and lifecycle change remains traceable.
 
-1. **What document was submitted?**
-2. **What did the model infer from it?**
-3. **Which fields are safe, uncertain, inconsistent, or unsupported?**
-4. **Who confirmed or corrected each financially meaningful value?**
+## Implemented flow
 
-The core principle is:
+```text
+authenticated employee
+  → signed company-scoped upload
+  → private Supabase Storage
+  → Cloudflare extraction queue
+  → file signature, size, and SHA-256 verification
+  → forced structured Anthropic vision extraction
+  → arithmetic and confidence checks
+  → exact/semantic duplicate candidates
+  → employee correction proposals
+  → finance/admin field resolution
+  → verified receipt
+```
 
-`document evidence → immutable prediction → deterministic validation → human confirmation → accepted fact`
+## Supported boundary
 
-AI output is never written directly over accepted financial data.
+Supported now:
 
-## Primary user outcome
+- JPEG, PNG, and WebP;
+- one image per receipt;
+- maximum 7.5 MB;
+- field-level confidence and evidence;
+- merchant, invoice, date, currency, subtotal, taxes, total, GSTIN, and line-item extraction;
+- exact decimal arithmetic checks;
+- exact-content and semantic duplicate candidates.
 
-An authenticated employee can upload a supported receipt image and receive a structured extraction that:
+Deferred:
 
-- preserves the original file and its hash;
-- records the model, prompt version, and raw response;
-- exposes field-level confidence and evidence;
-- detects arithmetic inconsistencies;
-- flags exact or likely duplicate submissions;
-- routes critical or uncertain fields to review;
-- stores every correction as a new auditable event;
-- never silently changes an accepted value.
+- HEIC, PDF, and multi-page conversion;
+- bank/card transaction matching;
+- perceptual image hashing;
+- personal/business line splitting;
+- policy approval;
+- accounting export;
+- reimbursement and money movement;
+- GST input-credit eligibility decisions.
 
-## Supported Phase 1 document boundary
+Unsupported documents fail visibly instead of entering the system with fabricated certainty.
 
-Initially supported:
+## Trust boundaries
 
-- JPEG receipts;
-- PNG receipts;
-- WebP receipts;
-- one image per receipt submission;
-- files no larger than 7.5 MB before base64 encoding;
-- English and mixed-language merchant text where the model can interpret it.
+- User-facing calls use Supabase JWTs and RLS.
+- Service-role and Anthropic keys remain inside the Worker.
+- Storage paths begin with company UUID and receipt UUID.
+- The server verifies actual bytes rather than trusting filename, MIME declaration, size, or client hash.
+- Text inside receipts is untrusted data and cannot issue instructions to the model or application.
+- The model can only submit a typed extraction object; it cannot approve, pay, delete, or change policy.
+- Totals, currency, invoice number, GSTIN, taxable value, and tax fields always require human resolution.
+- Any contextual field with low confidence or a deterministic warning also requires resolution.
+- Verification is blocked while required-review fields or duplicate candidates remain open.
 
-Explicitly deferred:
-
-- HEIC conversion;
-- PDFs and multi-page hotel folios;
-- handwritten cash books;
-- bank and card statement matching;
-- line-level personal/business splitting;
-- tax-credit eligibility decisions;
-- automatic reimbursement;
-- policy approval and accounting export.
-
-The upload boundary is intentionally strict. Unsupported documents fail visibly instead of entering the system with fabricated certainty.
+See [the threat model](threat-model.md) for the adversarial analysis.
 
 ## Receipt lifecycle
 
 ```text
-upload_pending
-      ↓
-received
-      ↓
-queued
-      ↓
-extracting
-      ↓
-extracted ──────────────┐
-      ↓                  │
-needs_review             │
-      ↓                  │
-verified                 │
-                         │
-failed ── retry ─────────┘
-
-Any non-final state may become rejected or archived through an explicit action.
+upload_pending → received → queued → extracting
+                                      ├→ needs_review → verified → archived
+                                      ├→ extracted → verified
+                                      └→ failed → queued (new immutable attempt)
 ```
 
-Transitions are validated in the database. An application bug must not be able to move a receipt from `upload_pending` directly to `verified`.
+The database trigger rejects illegal transitions. Application code cannot jump directly from upload to verified.
 
-## Architecture
+## Data separation
+
+The schema deliberately keeps these concepts separate:
 
 ```text
-Client
-  │
-  │ 1. Request signed upload intent
-  ▼
-Cloudflare Worker + Hono
-  │
-  ├─ authenticates Supabase JWT
-  ├─ creates receipt record
-  ├─ creates short-lived signed upload URL
-  └─ returns company-scoped storage path
-  │
-  │ 2. Client uploads directly to Supabase Storage
-  │
-  │ 3. Client confirms upload
-  ▼
-Worker validates object existence
-  │
-  ├─ marks receipt received
-  └─ enqueues extraction job
-  ▼
-Cloudflare Queue consumer
-  │
-  ├─ downloads original through service client
-  ├─ computes server-side SHA-256
-  ├─ creates immutable extraction run
-  ├─ calls Claude vision with forced structured tool output
-  ├─ validates arithmetic and confidence policy
-  ├─ stores field predictions
-  ├─ creates duplicate candidates
-  └─ marks receipt extracted / needs_review / failed
-  ▼
-Review API and future UI
+receipt file
+≠ extraction run
+≠ predicted field
+≠ correction proposal
+≠ accepted field resolution
+≠ duplicate decision
+≠ audit event
 ```
 
-The system begins as a modular monolith: one Worker deployment with clear domain boundaries. Separate services are deferred until load, ownership, or reliability requires them.
+Core tables:
 
-## Security and trust boundaries
+- `companies`, `company_memberships`;
+- `receipts`, `receipt_pages`;
+- `extraction_runs`, `extracted_fields`;
+- `field_corrections`, `field_resolutions`;
+- `duplicate_candidates`, `audit_events`.
 
-- The browser never receives the Supabase service-role key or Anthropic API key.
-- User-facing database access uses the employee's Supabase JWT and Row Level Security.
-- Internal extraction uses a service client only inside the Worker.
-- Storage paths begin with the company UUID and receipt UUID.
-- Signed upload URLs are short-lived and restricted to one object path.
-- File type and declared size are validated before an upload intent is created.
-- Actual object existence, content hash, and byte size are checked server-side.
-- Receipt text is untrusted data, never an instruction to the model or application.
-- Raw model output is retained for debugging and audits, but is not treated as accepted truth.
-- Critical fields require human confirmation even at high model confidence.
+RLS protects tenant reads and user writes. Database scope triggers additionally prevent cross-company foreign-key relationships, including service-side mistakes that RLS alone would not catch.
 
-## Field review policy
+## API
 
-Fields are grouped by consequence, not by model convenience.
+- `GET /health`
+- `POST /v1/receipts/upload-intents`
+- `POST /v1/receipts/:receiptId/complete`
+- `GET /v1/receipts/:receiptId`
+- `GET /v1/receipts/:receiptId/review`
+- `POST /v1/receipts/:receiptId/corrections`
+- `POST /v1/receipts/:receiptId/resolutions`
+- `POST /v1/duplicate-candidates/:candidateId/resolve`
 
-### Critical — always require confirmation
+All `/v1` routes require authentication. Finance/admin authority is checked inside security-definer database functions before resolution or final verification.
 
-- total amount;
-- currency;
-- invoice number when used for duplicate or tax review;
-- taxable value;
-- CGST, SGST, and IGST;
-- GSTIN;
-- payment status when introduced later.
+## Evaluation and release safety
 
-### Contextual — review when uncertain
+The repository includes:
 
-- merchant name;
-- invoice date;
-- category suggestion;
-- document type;
-- business-purpose suggestion;
-- project or cost centre when introduced later.
+- strict TypeScript checking;
+- lifecycle, confidence, arithmetic, fingerprint, image-signature, and evaluation tests;
+- schema contract tests for RLS, tenant integrity, immutable history, service-only extraction RPCs, and verification gates;
+- per-field corpus evaluation with overall and critical-field metrics;
+- CI on pushes to `main` and pull requests.
 
-### Derived checks — never accepted from the model alone
+Run:
 
-- arithmetic consistency;
-- duplicate status;
-- policy compliance;
-- tax-credit eligibility;
-- fraud conclusions.
+```bash
+npm install
+npm run check
+npm run evaluate -- research/gold.jsonl research/actual.jsonl research/report.json
+```
 
-A model may provide evidence for these checks, but deterministic code or a human makes the final classification.
+Use `MIN_CRITICAL_ACCURACY` and `MIN_OVERALL_COVERAGE` to make evaluation failures block a release.
 
-## Duplicate strategy
+## Implementation status
 
-Phase 1 distinguishes:
+Implemented in the repository:
 
-1. **Exact-content duplicate** — server-computed SHA-256 matches another company receipt.
-2. **Near-image duplicate** — deferred until perceptual hashing is added.
-3. **Semantic duplicate candidate** — normalized merchant, date, currency, amount, and invoice number match.
+1. Worker/API foundation;
+2. secure intake and queueing;
+3. tenant-safe truth schema;
+4. structured extraction engine;
+5. correction, field-resolution, duplicate-resolution, and final-verification API;
+6. corpus evaluation harness, tests, CI, and operator documentation.
 
-The system creates a candidate and reason. It never labels an employee fraudulent automatically.
+Not performed by repository commits:
 
-## Extraction output contract
+- creating or linking a Supabase project;
+- applying migrations to a live database;
+- creating Cloudflare queues;
+- configuring secrets;
+- deploying the Worker;
+- running real two-company RLS integration tests;
+- evaluating a representative, consented receipt corpus.
 
-The extractor returns a typed object containing:
+Follow the [operator runbook](runbook.md). Phase 1 should not be declared production-ready until those integration and evidence gates pass.
 
-- document type and image-quality assessment;
-- merchant name;
-- invoice number;
-- invoice date;
-- currency;
-- subtotal and total;
-- taxable value;
-- CGST, SGST, IGST, and other tax;
-- GSTIN;
-- line-item summary where readable;
-- warnings;
-- a confidence score and evidence snippet for each extracted field.
+## What this phase does not prove
 
-Confidence is a routing signal, not proof of correctness.
-
-## API surface
-
-### `GET /health`
-
-Reports process health and build metadata. It does not test third-party dependencies.
-
-### `POST /v1/receipts/upload-intents`
-
-Creates a receipt record and a signed upload URL.
-
-Required inputs:
-
-- company ID;
-- original filename;
-- MIME type;
-- byte size;
-- capture source;
-- optional capture timestamp.
-
-### `POST /v1/receipts/:receiptId/complete`
-
-Confirms that the object upload completed, verifies the expected object exists, stores the client-provided hash as an untrusted hint, and enqueues extraction.
-
-### `GET /v1/receipts/:receiptId`
-
-Returns the authenticated user's company-scoped receipt and extraction state.
-
-### Future Phase 1 slice
-
-- review fields;
-- submit corrections;
-- compare duplicate candidates;
-- retry failed extraction;
-- archive a receipt.
-
-## Database entities
-
-- `companies`
-- `company_memberships`
-- `receipts`
-- `receipt_pages`
-- `extraction_runs`
-- `extracted_fields`
-- `field_corrections`
-- `duplicate_candidates`
-- `audit_events`
-
-Important separation:
-
-`receipt file ≠ model prediction ≠ accepted field value ≠ correction history`
-
-## Observability
-
-Every request and extraction run includes:
-
-- request ID;
-- receipt ID;
-- company ID;
-- extraction-run ID;
-- model and prompt version;
-- start and finish timestamps;
-- normalized error code;
-- retry count;
-- final state.
-
-Logs must not contain full receipt images, API keys, authorization headers, or unrestricted raw personal data.
-
-## Failure handling
-
-- Upload intent creation is idempotent only when an explicit idempotency key is added in a later slice.
-- Queue messages may be delivered more than once; extraction processing must detect completed or active runs.
-- A model timeout creates a failed extraction run without deleting the receipt.
-- Retrying creates a new extraction run rather than mutating the old one.
-- Invalid structured output is stored as a failed run and never partially accepted.
-- Hash mismatch is treated as an integrity warning and requires review.
-- Unsupported MIME types are rejected before upload.
-
-## Exit criteria
-
-Phase 1 is complete only when:
-
-- tenant isolation is covered by RLS policies and tests;
-- supported files can complete the signed-upload flow;
-- server-side file hashing is recorded;
-- extraction runs are immutable and versioned;
-- every predicted field carries confidence and review status;
-- totals and tax arithmetic are checked deterministically;
-- critical fields cannot become verified without human action;
-- exact duplicate submissions are surfaced as candidates;
-- retries do not overwrite prior runs;
-- failure states are visible and recoverable;
-- automated tests cover lifecycle, money validation, confidence routing, and fingerprints;
-- a representative receipt corpus can be evaluated without placing customer files in Git.
-
-## What Phase 1 does not prove
-
-Completing this phase proves that Spendsnap can create trustworthy receipt records. It does not prove:
-
-- customer demand;
-- GST input-credit eligibility;
-- accounting-export compatibility;
-- policy accuracy;
-- manager approval behavior;
-- willingness to pay.
-
-Those remain Phase 0 and later-phase validation responsibilities.
-
-## Implementation slices
-
-1. **Foundation** — Worker, Hono, environment contract, health endpoint, request IDs.
-2. **Secure intake** — Supabase JWT verification, signed upload intents, object confirmation, queueing.
-3. **Truth schema** — receipt lifecycle, extraction history, field predictions, corrections, RLS, storage policies.
-4. **Extraction engine** — Claude vision adapter, strict output contract, server hashing, deterministic checks.
-5. **Verification API** — review and correction endpoints, accepted-value projection, duplicate decisions.
-6. **Evaluation harness** — corpus manifest, expected values, field metrics, regression report.
-
-This repository implementation delivers slices 1–4 and the domain foundation for slices 5–6.
+The implementation establishes a trustworthy receipt-processing foundation. It does not prove customer demand, willingness to pay, GST eligibility, accounting compatibility, policy accuracy, or manager behavior. Those claims require Phase 0 evidence and later workflow phases.

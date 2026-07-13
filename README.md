@@ -1,52 +1,83 @@
 # Spendsnap
 
-> employees snap receipts, an agent builds the whole expense report and routes it for approval, no corporate card needed.
+> Employees snap receipts; Spendsnap converts them into reviewable, auditable expense data without requiring a corporate card.
 
-**Alternative to the product-shape pioneered by Emburse (YC W16)** — rank #7 of 500 in the [YC-500 Fable 5 Venture Blueprint](https://github.com/) (score 7.3/10).
+Spendsnap is an AI-assisted expense-report product seed inspired by the workflow category pioneered by products such as Emburse. Its initial India-specific hypothesis is GST-aware receipt processing, but Phase 0 treats the customer segment, accounting destination, pricing, and GST value as evidence-driven decisions rather than assumptions.
 
-## Why this exists
-Expense reports are hated; receipt-to-report is prime AI work The buildable wedge: ai expense-report builder from receipts, no cards issued.
+## Current implementation
 
-## MVP scope
-- [ ] Receipt capture
-- [ ] AI extract + categorize
-- [ ] report assembly
-- [ ] approval routing
-- [ ] export to payroll
+The repository now contains **Phase 1: Receipt Truth Engine**:
 
-## Architecture
-`Workers+Supabase+Claude` — Cloudflare Workers + Hono API, Supabase (Postgres + RLS + Auth + pgvector), Claude API via Agent SDK (claude-fable-5 for agent reasoning, claude-haiku-4-5 for volume), wrangler deploys.
+```text
+signed receipt upload
+  → private company-scoped storage
+  → extraction queue
+  → server file/hash verification
+  → structured vision extraction
+  → deterministic arithmetic and duplicate checks
+  → field-level review queue
+  → employee correction proposals
+  → finance/admin resolution
+  → verified receipt evidence
+```
 
-**Integrations:** Claude vision; Slack; email
-**Data:** Receipts; expense lines; approvals
-**Agent core:** Agent turns a pile of receipts into a policy-checked report end-to-end
+The architecture uses:
 
-## Business
-| | |
+- Cloudflare Workers, Hono, and Cloudflare Queues;
+- Supabase Auth, Postgres, Row Level Security, and private Storage;
+- Anthropic vision through a forced structured extraction tool;
+- immutable extraction, correction, resolution, duplicate, and audit records.
+
+The AI cannot approve expenses, determine tax-credit eligibility, pay reimbursements, or overwrite accepted values.
+
+## Documentation
+
+- [Phase 0 — discovery and validation](docs/phase-0/README.md)
+- [Phase 1 — receipt truth engine](docs/phase-1/README.md)
+- [Phase 1 threat model](docs/phase-1/threat-model.md)
+- [Provisioning and operator runbook](docs/phase-1/runbook.md)
+- [Supabase setup and isolation checks](supabase/README.md)
+- [Receipt evaluation data contract](research/README.md)
+- [Architecture decisions](decisions/)
+
+## Local validation
+
+Requires Node.js 22 or newer.
+
+```bash
+npm install
+npm run check
+```
+
+To compare model output with a human-verified corpus:
+
+```bash
+npm run evaluate -- research/gold.jsonl research/actual.jsonl research/report.json
+```
+
+## API surface
+
+- `GET /health`
+- `POST /v1/receipts/upload-intents`
+- `POST /v1/receipts/:receiptId/complete`
+- `GET /v1/receipts/:receiptId`
+- `GET /v1/receipts/:receiptId/review`
+- `POST /v1/receipts/:receiptId/corrections`
+- `POST /v1/receipts/:receiptId/resolutions`
+- `POST /v1/duplicate-candidates/:candidateId/resolve`
+
+All `/v1` routes require a valid Supabase Bearer token. Final field resolution and duplicate decisions require the finance or admin role.
+
+## Original business hypothesis
+
+| Area | Hypothesis |
 |---|---|
-| Monetization | Per-seat SaaS |
-| First customer | SMBs with manual expense reports |
-| GTM wedge | 'expense report automation' SEO; outbound |
-| Competition risk | High: Expensify, Zoho Expense |
-| Regulatory/trust risk | Low: reporting only |
-| India angle | GST input-credit extraction from Indian invoices |
-| Difficulty / build time | Low / 2-3 weeks |
+| Monetization | Company base fee plus active usage; validate against per-seat and receipt-volume pricing |
+| Initial customer | Indian SMBs with repeated manual employee-expense processing |
+| Product wedge | Verified receipt-to-accounting workflow; test whether GST awareness materially improves purchase intent |
+| Competition | High; generic receipt scanning and approvals are not sufficient differentiation |
+| Trust boundary | AI-assisted reporting only; no cards, money movement, tax advice, or autonomous approval |
 
-## Phase 0 — discovery and validation
+## Status
 
-Before production development, validate the customer, workflow, document corpus, GST value, accounting destination, trust model, pricing, and pilot demand.
-
-**[Read the detailed Phase 0 plan](docs/phase-0/README.md)**
-
-Phase 1 begins only after the Phase 0 evidence supports a `GO`, `GO WITH NARROWER WEDGE`, or deliberate pivot decision.
-
-## 30-day plan
-- **W1:** core loop — Receipt capture + AI extract + categorize
-- **W2:** report assembly + approval routing + export to payroll + auth + billing
-- **W3:** polish, instrument events, seed first users via: 'expense report automation' SEO; outbound
-- **W4:** launch + first revenue; kill/scale decision
-
-> This schedule is provisional until the Phase 0 exit criteria are met.
-
----
-*Built with Fable 5 (Claude Code). Blueprint row: inspired by Emburse — "Virtual and physical employee card issuing and expense control"*
+The code, migrations, tests, and runbook are committed. Infrastructure has **not** been provisioned or deployed by these commits. Before real customer data, apply migrations in a non-production Supabase project, create the queues, configure secrets, run tenant-isolation tests, and evaluate a representative consented receipt corpus.

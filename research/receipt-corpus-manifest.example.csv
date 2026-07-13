@@ -1,0 +1,2 @@
+receipt_id,storage_reference,company_alias,document_type,media_type,language,capture_quality,financial_complexity,reviewed_by,consent_reference,retention_until,notes
+sample-001,private://receipts/sample-001,company-a,tax_invoice,image/jpeg,English,clear,itemized,reviewer-01,consent-001,2026-10-13,synthetic example only

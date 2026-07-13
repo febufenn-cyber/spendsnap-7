@@ -47,3 +47,11 @@ test('model predictions and human corrections remain separate', async () => {
   assert.match(sql, /create table public\.field_corrections/);
   assert.match(sql, /unique \(extraction_run_id, field_name\)/);
 });
+
+test('verification requires resolved review fields and duplicate decisions', async () => {
+  const sql = await migration('202607130006_field_resolution.sql');
+  assert.match(sql, /field_resolutions/);
+  assert.match(sql, /field\.review_status = 'requires_review'/);
+  assert.match(sql, /Open duplicate candidates must be resolved before verification/);
+  assert.match(sql, /array\['finance', 'admin'\]/);
+});
