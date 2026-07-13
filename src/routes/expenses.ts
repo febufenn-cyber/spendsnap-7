@@ -35,7 +35,10 @@ const createReportSchema = z.object({
   periodEnd: isoDate,
 });
 
-const addItemSchema = z.object({ claimId: uuid });
+const addItemSchema = z.object({
+  claimId: uuid,
+  expectedVersion: z.number().int().positive(),
+});
 const versionSchema = z.object({ expectedVersion: z.number().int().positive() });
 
 async function jsonBody(request: Request): Promise<unknown> {
@@ -57,6 +60,14 @@ function requireUuid(value: string, label: string): string {
     throw new AppError('bad_request', 400, `${label} is invalid.`);
   }
   return value;
+}
+
+function requireVersion(value: string | undefined): number {
+  const parsed = z.coerce.number().int().positive().safeParse(value);
+  if (!parsed.success) {
+    throw new AppError('bad_request', 400, 'Expected version is invalid.');
+  }
+  return parsed.data;
 }
 
 export const expenseRoutes = new Hono<AppBindings>();
@@ -192,6 +203,7 @@ expenseRoutes.post('/reports/:reportId/items', async (context) => {
   const item = await repository.addClaim(
     reportId,
     parsed.data.claimId,
+    parsed.data.expectedVersion,
     context.get('requestId'),
   );
   return context.json({ item }, 201);
@@ -200,8 +212,14 @@ expenseRoutes.post('/reports/:reportId/items', async (context) => {
 expenseRoutes.delete('/reports/:reportId/items/:claimId', async (context) => {
   const reportId = requireUuid(context.req.param('reportId'), 'Report ID');
   const claimId = requireUuid(context.req.param('claimId'), 'Claim ID');
+  const expectedVersion = requireVersion(context.req.query('expectedVersion'));
   const repository = new SupabaseExpenseRepository(context.env, context.get('accessToken'));
-  const result = await repository.removeClaim(reportId, claimId, context.get('requestId'));
+  const result = await repository.removeClaim(
+    reportId,
+    claimId,
+    expectedVersion,
+    context.get('requestId'),
+  );
   return context.json({ result });
 });
 
