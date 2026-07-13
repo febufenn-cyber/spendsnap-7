@@ -6,12 +6,22 @@ export interface SemanticFingerprintInput {
   total: string | null;
 }
 
-function normalize(value: string | null): string {
+function normalizeIdentity(value: string | null): string {
   return (value ?? '')
     .normalize('NFKC')
     .trim()
     .toUpperCase()
-    .replace(/[^A-Z0-9.-]+/g, '');
+    .replace(/[^A-Z0-9]+/g, '');
+}
+
+function normalizeAmount(value: string | null): string {
+  const compact = (value ?? '').replace(/,/g, '').trim();
+  if (!/^-?\d+(?:\.\d+)?$/.test(compact)) return normalizeIdentity(value);
+
+  const [whole = '0', fraction = ''] = compact.split('.');
+  const normalizedWhole = whole.replace(/^(-?)0+(?=\d)/, '$1');
+  const normalizedFraction = fraction.replace(/0+$/, '');
+  return normalizedFraction ? `${normalizedWhole}.${normalizedFraction}` : normalizedWhole;
 }
 
 export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
@@ -27,11 +37,11 @@ export async function semanticFingerprint(input: SemanticFingerprintInput): Prom
   }
 
   const canonical = [
-    normalize(input.merchantName),
-    normalize(input.invoiceNumber),
-    normalize(input.invoiceDate),
-    normalize(input.currency),
-    normalize(input.total),
+    normalizeIdentity(input.merchantName),
+    normalizeIdentity(input.invoiceNumber),
+    normalizeIdentity(input.invoiceDate),
+    normalizeIdentity(input.currency),
+    normalizeAmount(input.total),
   ].join('|');
 
   return sha256Hex(new TextEncoder().encode(canonical).buffer);
