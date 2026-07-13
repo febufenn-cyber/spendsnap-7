@@ -208,20 +208,32 @@ export class SupabaseExpenseRepository implements ExpenseRepository {
     return (data ?? []) as Record<string, unknown>[];
   }
 
-  async addClaim(reportId: string, claimId: string, requestId: string): Promise<unknown> {
+  async addClaim(
+    reportId: string,
+    claimId: string,
+    expectedVersion: number,
+    requestId: string,
+  ): Promise<unknown> {
     const { data, error } = await this.client.rpc('add_claim_to_expense_report', {
       p_report_id: reportId,
       p_claim_id: claimId,
+      p_expected_version: expectedVersion,
       p_request_id: requestId,
     });
     if (error) throw databaseError('Could not add the claim to the report.', error);
     return data;
   }
 
-  async removeClaim(reportId: string, claimId: string, requestId: string): Promise<unknown> {
+  async removeClaim(
+    reportId: string,
+    claimId: string,
+    expectedVersion: number,
+    requestId: string,
+  ): Promise<unknown> {
     const { data, error } = await this.client.rpc('remove_claim_from_expense_report', {
       p_report_id: reportId,
       p_claim_id: claimId,
+      p_expected_version: expectedVersion,
       p_request_id: requestId,
     });
     if (error) throw databaseError('Could not remove the claim from the report.', error);
