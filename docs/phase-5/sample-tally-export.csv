@@ -1,0 +1,2 @@
+Voucher Date,Voucher Type,Ledger,Vendor,Reference,Amount,Currency,Cost Centre,Project,Narration,GSTIN,Taxable Value,CGST,SGST,IGST,GST Readiness
+"2026-07-01","Payment","Travel","Example Mobility Pvt Ltd","INV-001","1180.0000","INR","SALES","CLIENT-A","Client site visit","33ABCDE1234F1Z5","1000.0000","90.0000","90.0000","0.0000","complete"
