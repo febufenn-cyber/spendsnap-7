@@ -3,6 +3,7 @@ import type { AppBindings } from './env';
 import { AppError, errorMessage, isAppError } from './errors';
 import { authMiddleware } from './middleware/auth';
 import { requestIdMiddleware } from './middleware/request-id';
+import { approvalRoutes } from './routes/approvals';
 import { duplicateRoutes } from './routes/duplicates';
 import { expenseRoutes } from './routes/expenses';
 import { policyRoutes } from './routes/policies';
@@ -26,30 +27,20 @@ export function createApp(): Hono<AppBindings> {
   app.route('/v1/duplicate-candidates', duplicateRoutes);
   app.route('/v1/expenses', expenseRoutes);
   app.route('/v1/policies', policyRoutes);
+  app.route('/v1/approvals', approvalRoutes);
 
   app.notFound((context) => context.json({
-    error: {
-      code: 'not_found',
-      message: 'Route not found.',
-      requestId: context.get('requestId'),
-    },
+    error: { code: 'not_found', message: 'Route not found.', requestId: context.get('requestId') },
   }, 404));
 
   app.onError((error, context) => {
     const requestId = context.get('requestId') || crypto.randomUUID();
     const normalized = isAppError(error)
       ? error
-      : new AppError('internal_error', 500, 'An unexpected error occurred.', undefined, {
-          cause: error,
-        });
+      : new AppError('internal_error', 500, 'An unexpected error occurred.', undefined, { cause: error });
     console.error(JSON.stringify({
-      level: 'error',
-      requestId,
-      code: normalized.code,
-      status: normalized.status,
-      message: errorMessage(error),
+      level: 'error', requestId, code: normalized.code, status: normalized.status, message: errorMessage(error),
     }));
-
     return context.json({
       error: {
         code: normalized.code,
