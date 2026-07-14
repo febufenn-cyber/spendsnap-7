@@ -9,21 +9,45 @@ permissions:
   contents: read
 
 jobs:
-  validate:
+  backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
-      - name: Install dependencies
+          cache: npm
+      - name: Install backend dependencies
         run: npm install --no-audit --no-fund
-
-      - name: Typecheck and test
+      - name: Typecheck and test backend
         run: npm run check
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install web dependencies
+        working-directory: web
+        run: npm install --no-audit --no-fund
+      - name: Typecheck web application
+        working-directory: web
+        run: npm run typecheck
+      - name: Build every product entry point
+        working-directory: web
+        run: npm run build
+      - name: Verify multi-page output
+        run: |
+          test -f web/dist/index.html
+          test -f web/dist/finance.html
+          test -f web/dist/admin.html
+          test -f web/dist/agent.html
+          test -f web/dist/commercial.html
