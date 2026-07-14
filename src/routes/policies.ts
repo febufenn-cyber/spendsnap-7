@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
-  POLICY_EXCEPTION_STATUSES,
   POLICY_RULE_TYPES,
   POLICY_SEVERITIES,
   validatePolicyRuleConfig,
@@ -24,10 +23,7 @@ const ruleSchema = z.object({
 });
 const exceptionSchema = z.object({ reason: z.string().trim().min(10).max(2000) });
 const resolutionSchema = z.object({
-  status: z.enum(POLICY_EXCEPTION_STATUSES).refine(
-    (value): value is 'approved' | 'rejected' => value === 'approved' || value === 'rejected',
-    'Only approved or rejected are valid review decisions.',
-  ),
+  status: z.enum(['approved', 'rejected']),
   reviewNote: z.string().trim().max(2000).nullable().optional(),
 });
 
