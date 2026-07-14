@@ -5,6 +5,7 @@ import { authMiddleware } from './middleware/auth';
 import { requestIdMiddleware } from './middleware/request-id';
 import { duplicateRoutes } from './routes/duplicates';
 import { expenseRoutes } from './routes/expenses';
+import { policyRoutes } from './routes/policies';
 import { receiptRoutes } from './routes/receipts';
 
 export function createApp(): Hono<AppBindings> {
@@ -24,6 +25,7 @@ export function createApp(): Hono<AppBindings> {
   app.route('/v1/receipts', receiptRoutes);
   app.route('/v1/duplicate-candidates', duplicateRoutes);
   app.route('/v1/expenses', expenseRoutes);
+  app.route('/v1/policies', policyRoutes);
 
   app.notFound((context) => context.json({
     error: {
