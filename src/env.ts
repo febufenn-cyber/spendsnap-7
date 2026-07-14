@@ -9,6 +9,7 @@ export interface Env {
   RECEIPT_BUCKET: string;
   MAX_RECEIPT_BYTES: string;
   EXTRACTION_PROMPT_VERSION: string;
+  AGENT_PROMPT_VERSION?: string;
   BUILD_SHA?: string;
   ALLOWED_ORIGINS?: string;
   MAX_JSON_BYTES?: string;
