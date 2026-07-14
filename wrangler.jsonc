@@ -10,7 +10,10 @@
   "vars": {
     "RECEIPT_BUCKET": "receipts",
     "MAX_RECEIPT_BYTES": "7500000",
-    "EXTRACTION_PROMPT_VERSION": "receipt-v1"
+    "MAX_JSON_BYTES": "1000000",
+    "EXTRACTION_PROMPT_VERSION": "receipt-v1",
+    "AGENT_PROMPT_VERSION": "agent-v1",
+    "ALLOWED_ORIGINS": "http://localhost:5173"
   },
   "queues": {
     "producers": [
