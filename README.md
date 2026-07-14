@@ -1,123 +1,144 @@
 # Spendsnap
 
-> Employees snap receipts; Spendsnap converts them into reviewable, auditable expense reports without requiring a corporate card.
+> Turn employee receipts into reviewable, policy-checked, approved, accounting-ready expense evidence—without requiring a corporate card.
 
-Spendsnap is an AI-assisted expense-report product seed. Its initial India-specific hypothesis is GST-aware receipt processing, while customer segment, accounting destination, pricing, and GST value remain evidence-driven decisions.
+Spendsnap is an India-oriented, AI-assisted expense workflow built around a strict trust boundary: models may extract or advise, but deterministic rules and authenticated humans own financial decisions.
 
-## Current implementation
+## Repository status
 
-The repository contains two completed backend phases and an in-progress third phase:
+The repository implementation is complete through **Phase 8**:
 
 ```text
-Phase 1 — Receipt Truth Engine
-signed receipt upload
-  → private company-scoped storage
-  → extraction queue
-  → file/hash verification
-  → structured vision extraction
-  → deterministic validation and duplicate checks
-  → human field resolution
-  → verified receipt evidence
-
-Phase 2 — Employee Submission and Report Assembly
-verified receipt evidence
-  → employee-confirmed expense claim
-  → category/project/cost-centre context
-  → draft report assembly
-  → database readiness validation
-  → exact totals grouped by currency
-  → immutable submitted report snapshot
-  → finance-visible evidence
-
-Phase 3 — Deterministic Policy Engine (in progress)
-draft claim/report
-  → versioned company policy rules
-  → explainable warning/block evaluations
-  → scoped exception requests
-  → locked submission-time re-evaluation
-  → immutable policy evidence
+receipt upload
+  → private storage and queued extraction
+  → server file/hash and arithmetic validation
+  → human resolution of critical fields
+  → employee claim and immutable report submission
+  → deterministic policy checks and scoped exceptions
+  → authenticated manager and finance approval
+  → GST document-readiness review
+  → immutable checksummed Tally-compatible CSV export
+  → tenant/security administration and audit evidence
+  → guardrailed advisory agent
+  → onboarding, trial, plans, usage and signed billing events
 ```
 
-The architecture uses:
+**This does not mean the product is live.** Infrastructure has not been provisioned, migrations have not been applied to a live database, provider credentials were unavailable, automated checks were not executed in this connector-only environment, and no customer financial data was processed.
 
-- Cloudflare Workers, Hono, and Cloudflare Queues;
-- Supabase Auth, Postgres, Row Level Security, and private Storage;
-- Anthropic vision through a forced structured extraction tool;
-- immutable extraction, correction, resolution, submission, policy, and audit records;
-- optimistic versions and database row locks for concurrent report edits.
+See the [autonomous build completion report](docs/BUILD_COMPLETION_REPORT.md) and [production launch checklist](docs/LAUNCH_CHECKLIST.md).
 
-The AI cannot approve expenses, determine tax-credit eligibility, pay reimbursements, invent exchange rates, or overwrite accepted values.
+## Trust boundaries
+
+- The database owns financial state transitions and exact totals.
+- Submitted, approved, exported and billing records preserve immutable evidence.
+- Tenant boundaries use RLS plus explicit cross-table company checks.
+- Critical receipt fields require human resolution.
+- Duplicate detection creates candidates, never fraud accusations.
+- GST readiness means document completeness, not tax-credit eligibility.
+- Approval links require authentication; self-approval is forbidden.
+- AI cannot approve, pay, determine tax eligibility, delete evidence, override policy or silently change financial facts.
+- Billing webhooks require HMAC-SHA256 signatures, body limits, payload hashes and unique provider event IDs.
+
+## Architecture
+
+- **API and processing:** Cloudflare Workers, Hono and Cloudflare Queues
+- **Data and identity:** Supabase Auth, Postgres, Row Level Security and private Storage
+- **AI:** structured Anthropic vision extraction plus a separately guardrailed advisory agent
+- **Web:** React, TypeScript and Vite multi-page build
+- **Evidence:** immutable extraction, correction, policy, approval, export, security, agent and billing histories
+
+## Product entry points
+
+The web build produces:
+
+| Entry | Purpose |
+|---|---|
+| `index.html` | Employee receipts, claims, reports and reviewer queue |
+| `finance.html` | Finance review, GST readiness and Tally CSV export |
+| `admin.html` | Members, invitations, security settings and audit evidence |
+| `agent.html` | Advisory-only agent runs and human proposal confirmation |
+| `commercial.html` | Onboarding, trial, usage and plan administration |
 
 ## Documentation
 
-- [Autonomous remaining-phase build roadmap](docs/AUTONOMOUS_BUILD_ROADMAP.md)
-- [Phase 0 — discovery and validation](docs/phase-0/README.md)
-- [Phase 1 — receipt truth engine](docs/phase-1/README.md)
-- [Phase 1 threat model](docs/phase-1/threat-model.md)
-- [Phase 1 provisioning runbook](docs/phase-1/runbook.md)
-- [Phase 2 — employee submission and report assembly](docs/phase-2/README.md)
-- [Phase 3 — deterministic policy engine](docs/phase-3/README.md)
-- [Supabase setup and isolation checks](supabase/README.md)
-- [Receipt evaluation data contract](research/README.md)
-- [Architecture decisions](decisions/)
-
-The command `build` means: verify the current mainline state, finish Phase 3, then execute Phases 4–8 sequentially under the roadmap's preflight, testing, commit, publication, and confirmation protocol. External operations that cannot be performed must be disclosed rather than implied.
+- [Build completion report](docs/BUILD_COMPLETION_REPORT.md)
+- [Autonomous execution roadmap](docs/AUTONOMOUS_BUILD_ROADMAP.md)
+- [Production launch checklist](docs/LAUNCH_CHECKLIST.md)
+- [Deployment and rollback](docs/DEPLOYMENT.md)
+- [Incident response](docs/INCIDENT_RESPONSE.md)
+- [Support runbook](docs/SUPPORT_RUNBOOK.md)
+- [Synthetic sales demo](docs/SALES_DEMO.md)
+- [Security policy](SECURITY.md)
+- [Privacy engineering principles](PRIVACY.md)
+- [Phase 0 discovery framework](docs/phase-0/README.md)
+- [Phase 1 receipt truth engine](docs/phase-1/README.md)
+- [Phase 2 employee submission](docs/phase-2/README.md)
+- [Phase 3 policy engine](docs/phase-3/README.md)
+- [Phase 4 approval and product UI](docs/phase-4/README.md)
+- [Phase 5 finance and export](docs/phase-5/README.md)
+- [Phase 6 production hardening](docs/phase-6/README.md)
+- [Phase 7 agent advisor](docs/phase-7/README.md)
+- [Phase 8 commercial OS](docs/phase-8/README.md)
 
 ## Local validation
 
 Requires Node.js 22 or newer.
+
+### Backend
 
 ```bash
 npm install
 npm run check
 ```
 
-To compare model output with a human-verified corpus:
+### Web application
+
+```bash
+cd web
+npm install
+npm run typecheck
+npm run build
+```
+
+The web artifact must contain all five HTML entry points listed above.
+
+### Extraction evaluation
 
 ```bash
 npm run evaluate -- research/gold.jsonl research/actual.jsonl research/report.json
 ```
 
-## API surface
+## Major API groups
 
-### Receipt evidence
+All `/v1` routes require a valid Supabase Bearer token.
+
+- `/v1/receipts` — upload, processing, review, corrections and field resolution
+- `/v1/duplicate-candidates` — finance/admin duplicate decisions
+- `/v1/expenses` — claims, reports, assembly, submission and withdrawal
+- `/v1/policies` — versioned rules, evaluation and exception requests
+- `/v1/approvals` — assignments, immutable decisions and revisions
+- `/v1/finance` — GST readiness, accounting workspace and exports
+- `/v1/admin` — security settings, invitations, roles, deletion requests and audit export
+- `/v1/agent` — advisory runs, proposals and human confirmation
+- `/v1/commercial` — plans, onboarding, subscriptions, usage and product events
+- `/webhooks/billing` — signed provider-neutral billing events
+
+Operational endpoints:
 
 - `GET /health`
-- `POST /v1/receipts/upload-intents`
-- `POST /v1/receipts/:receiptId/complete`
-- `GET /v1/receipts/:receiptId`
-- `GET /v1/receipts/:receiptId/review`
-- `POST /v1/receipts/:receiptId/corrections`
-- `POST /v1/receipts/:receiptId/resolutions`
-- `POST /v1/duplicate-candidates/:candidateId/resolve`
+- `GET /ready`
 
-### Employee expenses
+## Commercial hypotheses
 
-- `GET /v1/expenses/dimensions?companyId=...`
-- `POST /v1/expenses/claims/from-receipt`
-- `GET /v1/expenses/claims?companyId=...&status=draft`
-- `GET /v1/expenses/claims/:claimId`
-- `PATCH /v1/expenses/claims/:claimId`
-- `POST /v1/expenses/reports`
-- `GET /v1/expenses/reports?companyId=...&status=draft`
-- `GET /v1/expenses/reports/:reportId`
-- `POST /v1/expenses/reports/:reportId/items`
-- `DELETE /v1/expenses/reports/:reportId/items/:claimId?expectedVersion=...`
-- `POST /v1/expenses/reports/:reportId/submit`
-- `POST /v1/expenses/reports/:reportId/withdraw`
-
-All `/v1` routes require a valid Supabase Bearer token. Receipt field resolution and duplicate decisions require finance or admin. Employees control their own claims and reports; manager, finance, admin, and auditor roles may read company report evidence.
-
-## Business hypothesis
-
-| Area | Hypothesis |
+| Area | Current hypothesis |
 |---|---|
-| Monetization | Company base fee plus active usage; validate against per-seat and receipt-volume pricing |
-| Initial customer | Indian SMBs with repeated manual employee-expense processing |
-| Product wedge | Verified receipt-to-accounting workflow; test whether GST awareness materially improves purchase intent |
-| Competition | High; generic receipt scanning and approvals are not sufficient differentiation |
-| Trust boundary | AI-assisted reporting only; no cards, money movement, tax advice, or autonomous approval |
+| Initial customer | Indian SMBs with repeated field or travel expense processing |
+| Primary buyer | Finance manager, founder or accounting partner |
+| Wedge | Verified receipt-to-accounting workflow with GST document readiness |
+| Pricing | Company fee plus included usage; plan rows remain versionable experiments |
+| First export | Tally-compatible UTF-8 CSV |
+| Trust boundary | No cards, reimbursement payments, tax filing or autonomous approval |
 
-## Status
+## Before production
 
-Phase 1 and Phase 2 are code-complete in the repository. Phase 3 is partially implemented and must pass its roadmap exit gate before Phase 4 begins. Infrastructure has **not** been provisioned or deployed by these commits. Before real customer data, apply all migrations in a non-production Supabase project, create Cloudflare queues, configure secrets, run tenant-isolation and concurrency tests, execute the full repository check, and validate a representative consented receipt/report corpus.
+Apply every migration in filename order to a fresh non-production project, run the complete launch checklist, validate tenant isolation and concurrency, restore a backup, complete a real historical accounting import, independently review security and GST language, pass adversarial agent evaluation, integrate billing, and obtain a paid pilot.
