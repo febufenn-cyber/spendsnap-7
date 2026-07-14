@@ -10,6 +10,8 @@ export interface Env {
   MAX_RECEIPT_BYTES: string;
   EXTRACTION_PROMPT_VERSION: string;
   BUILD_SHA?: string;
+  ALLOWED_ORIGINS?: string;
+  MAX_JSON_BYTES?: string;
   EXTRACTION_QUEUE: Queue<ExtractionJob>;
 }
 
@@ -29,7 +31,7 @@ export interface AppBindings {
   Variables: AppVariables;
 }
 
-export function positiveInteger(value: string, fallback: number): number {
-  const parsed = Number.parseInt(value, 10);
+export function positiveInteger(value: string | undefined, fallback: number): number {
+  const parsed = Number.parseInt(value ?? '', 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
